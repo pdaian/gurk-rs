@@ -28,6 +28,8 @@ Prerequisites:
 cargo install --git https://github.com/boxdot/gurk-rs gurk
 ```
 
+For local `arm64` / `aarch64` builds, see [docs/build-arm64.md](docs/build-arm64.md).
+
 ## Arch Linux
 
 ```shell
