@@ -8,7 +8,8 @@ use presage::libsignal_service::content::{Content, ContentBody, Metadata};
 use presage::libsignal_service::protocol::ServiceId;
 use presage::proto::sync_message::{Read, Sent};
 use presage::proto::{
-    AttachmentPointer, DataMessage, EditMessage, ReceiptMessage, SyncMessage, TypingMessage,
+    AttachmentPointer, CallMessage, DataMessage, EditMessage, ReceiptMessage, SyncMessage,
+    TypingMessage,
 };
 use presage::proto::{GroupContextV2, data_message::Reaction};
 use tracing::{debug, error, info, warn};
@@ -18,6 +19,7 @@ use crate::data::{BodyRange, ChannelId, Message, TypingAction, TypingSet};
 use crate::receipt::{Receipt, ReceiptEvent};
 use crate::signal::{Attachment, GroupIdentifierBytes};
 use crate::storage::MessageId;
+use crate::util::utc_now_timestamp_msec;
 
 use super::{
     App, HandleReactionOptions, add_emoji_from_sticker, notification_text_for_attachments,
@@ -38,6 +40,22 @@ impl App {
 
         if let ContentBody::SynchronizeMessage(SyncMessage { ref read, .. }) = content.body {
             self.handle_read(read);
+        }
+
+        if let (
+            Metadata { sender, .. },
+            ContentBody::CallMessage(call_message),
+        ) = (&content.metadata, &content.body)
+            && let Some(text) = call_message_offer_text(call_message)
+        {
+            let from_id = sender.raw_uuid();
+            let name = self.name_by_id(from_id).await;
+            let channel_idx = self.ensure_contact_channel_exists(from_id, &name).await;
+            self.add_message_to_channel(
+                channel_idx,
+                Message::text(from_id, utc_now_timestamp_msec(), text.to_string()),
+            );
+            return Ok(());
         }
 
         let (channel_idx, message) = match (content.metadata, content.body) {
@@ -210,13 +228,14 @@ impl App {
                             message:
                                 Some(DataMessage {
                                     mut body,
-                                    profile_key,
-                                    group_v2,
-                                    quote,
-                                    attachments: attachment_pointers,
-                                    sticker,
-                                    body_ranges,
-                                    reaction: None,
+                                profile_key,
+                                group_v2,
+                                group_call_update,
+                                quote,
+                                attachments: attachment_pointers,
+                                sticker,
+                                body_ranges,
+                                reaction: None,
                                     ..
                                 }),
                             ..
@@ -254,20 +273,22 @@ impl App {
                     return Ok(());
                 };
 
+                let call_message = group_call_update
+                    .map(|_| Message::text(user_id, timestamp, "Started a group call".to_string()));
                 add_emoji_from_sticker(&mut body, sticker);
                 let quote = quote.and_then(Message::from_quote).map(Box::new);
                 let attachments = self.save_attachments(attachment_pointers).await;
                 let body_ranges = body_ranges.into_iter().filter_map(BodyRange::from_proto);
 
-                let message = Message {
+                let message = call_message.unwrap_or_else(|| Message {
                     quote,
                     ..Message::new(user_id, body, body_ranges, timestamp, attachments)
-                };
+                });
 
                 if message.is_empty() {
                     debug!("dropping empty message");
                     return Ok(());
-                }
+                };
 
                 (channel_idx, message)
             }
@@ -279,6 +300,7 @@ impl App {
                     group_v2,
                     timestamp: Some(timestamp),
                     profile_key,
+                    group_call_update,
                     quote,
                     attachments: attachment_pointers,
                     sticker,
@@ -362,10 +384,18 @@ impl App {
 
                 let quote = quote.and_then(Message::from_quote).map(Box::new);
                 let body_ranges = body_ranges.into_iter().filter_map(BodyRange::from_proto);
-                let message = Message {
-                    quote,
-                    ..Message::new(sender.raw_uuid(), body, body_ranges, timestamp, attachments)
-                };
+                let message = group_call_update
+                    .map(|_| {
+                        Message::text(
+                            sender.raw_uuid(),
+                            timestamp,
+                            "Started a group call".to_string(),
+                        )
+                    })
+                    .unwrap_or_else(|| Message {
+                        quote,
+                        ..Message::new(sender.raw_uuid(), body, body_ranges, timestamp, attachments)
+                    });
 
                 if message.is_empty() {
                     return Ok(());
@@ -374,7 +404,7 @@ impl App {
                 (channel_idx, message)
             }
             (metadata, ContentBody::SynchronizeMessage(sync_message)) => {
-                return self.handle_sync_message(metadata, sync_message);
+                return self.handle_sync_message(metadata, sync_message).await;
             }
             (
                 Metadata { sender, .. },
@@ -672,11 +702,17 @@ impl App {
 
     // Absorbed from handlers.rs
 
-    pub(super) fn handle_sync_message(
+    pub(super) async fn handle_sync_message(
         &mut self,
         metadata: Metadata,
         sync_message: SyncMessage,
     ) -> anyhow::Result<()> {
+        if let Some(call_event) = sync_message.call_event.as_ref() {
+            self.handle_call_event(call_event, metadata.sender.raw_uuid())
+                .await;
+            return Ok(());
+        }
+
         let Some(channel_id) = sync_message.channel_id() else {
             debug!("dropping a sync message not attached to a channel");
             return Ok(());
@@ -748,6 +784,59 @@ impl App {
         }
 
         Ok(())
+    }
+
+    async fn handle_call_event(
+        &mut self,
+        call_event: &presage::proto::sync_message::CallEvent,
+        sync_sender_id: Uuid,
+    ) {
+        let Some(peer_id) = call_event.peer_id.as_deref() else {
+            info!("skipping call event without peer id");
+            return;
+        };
+        let Some(timestamp) = call_event.timestamp else {
+            info!("skipping call event without timestamp");
+            return;
+        };
+        let Some(text) = sync_call_event_text(call_event) else {
+            return;
+        };
+
+        let Some(channel_idx) = self.ensure_call_event_channel(peer_id).await else {
+            info!("skipping call event for unknown channel");
+            return;
+        };
+
+        let from_id = match (
+            sync_call_event_direction(call_event.direction),
+            parse_uuid(None, Some(peer_id)),
+        ) {
+            (CallDirection::Incoming, Some(peer_uuid)) => peer_uuid,
+            (CallDirection::Outgoing, _) => self.user_id,
+            _ => sync_sender_id,
+        };
+
+        self.add_message_to_channel(channel_idx, Message::text(from_id, timestamp, text));
+    }
+
+    async fn ensure_call_event_channel(&mut self, peer_id: &[u8]) -> Option<usize> {
+        if let Some(peer_uuid) = parse_uuid(None, Some(peer_id)) {
+            let name = self.name_by_id(peer_uuid).await;
+            return Some(self.ensure_contact_channel_exists(peer_uuid, &name).await);
+        }
+
+        let channel_id = ChannelId::try_from(peer_id).ok()?;
+        if let Some(idx) = self.channels.items.iter().position(|id| id == &channel_id) {
+            return Some(idx);
+        }
+        if self.storage.channel(channel_id).is_some() {
+            let channel_idx = self.channels.items.len();
+            self.channels.items.push(channel_id);
+            return Some(channel_idx);
+        }
+
+        None
     }
 
     /// Handles read notifications
@@ -829,6 +918,60 @@ impl SyncSentExt for Sent {
             self.destination_service_id_binary.as_deref(),
         )
     }
+}
+
+#[derive(Clone, Copy)]
+enum CallDirection {
+    Unknown,
+    Incoming,
+    Outgoing,
+}
+
+fn call_message_offer_text(call_message: &CallMessage) -> Option<&'static str> {
+    let offer = call_message.offer.as_ref()?;
+    Some(match offer.r#type.unwrap_or_default() {
+        1 => "Incoming video call",
+        _ => "Incoming voice call",
+    })
+}
+
+fn sync_call_event_direction(direction: Option<i32>) -> CallDirection {
+    match direction.unwrap_or_default() {
+        1 => CallDirection::Incoming,
+        2 => CallDirection::Outgoing,
+        _ => CallDirection::Unknown,
+    }
+}
+
+fn sync_call_event_text(call_event: &presage::proto::sync_message::CallEvent) -> Option<String> {
+    let direction = match sync_call_event_direction(call_event.direction) {
+        CallDirection::Incoming => "Incoming",
+        CallDirection::Outgoing => "Outgoing",
+        CallDirection::Unknown => "Call",
+    };
+    let kind = match call_event.r#type.unwrap_or_default() {
+        1 => "voice call",
+        2 => "video call",
+        3 => "group call",
+        4 => "ad-hoc call",
+        _ => "call",
+    };
+    let event = match call_event.event.unwrap_or_default() {
+        0 => None,
+        1 => Some("accepted"),
+        2 => Some("not accepted"),
+        3 => Some("deleted"),
+        4 => Some("observed"),
+        _ => Some("updated"),
+    };
+
+    let mut text = format!("{direction} {kind}");
+    if let Some(event) = event {
+        text.push_str(" (");
+        text.push_str(event);
+        text.push(')');
+    }
+    Some(text)
 }
 
 #[cfg(test)]
