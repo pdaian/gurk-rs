@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Gurk
+Comment=Signal messenger client for terminal
+Exec=gurk-launch
+Icon=icon.svg
+Terminal=true
+Type=Application
+X-Lomiri-Touch=true
+X-Ubuntu-Touch=true

@@ -1,4 +1,5 @@
 mod changelog;
+mod click;
 mod dist;
 mod flags;
 
@@ -13,6 +14,7 @@ fn main() -> Result<()> {
 
     let flags = flags::Xtask::from_env_or_exit();
     match flags.subcommand {
+        flags::XtaskCmd::Click(cmd) => cmd.run(&sh),
         flags::XtaskCmd::Dist(cmd) => cmd.run(&sh),
         flags::XtaskCmd::Changelog(cmd) => cmd.run(&sh),
     }

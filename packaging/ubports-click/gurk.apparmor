@@ -1,0 +1,6 @@
+{
+  "policy_version": 24.04,
+  "policy_groups": [
+    "networking"
+  ]
+}

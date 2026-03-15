@@ -5,6 +5,9 @@ xflags::xflags! {
 
     /// Run custom build command.
     cmd xtask {
+        /// Build UBports 24.04 arm64 click package
+        cmd click {}
+
         /// Build dist archive
         cmd dist {}
 
@@ -22,9 +25,13 @@ pub struct Xtask {
 
 #[derive(Debug)]
 pub enum XtaskCmd {
+    Click(Click),
     Dist(Dist),
     Changelog(Changelog),
 }
+
+#[derive(Debug)]
+pub struct Click;
 
 #[derive(Debug)]
 pub struct Dist;

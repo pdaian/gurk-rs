@@ -6,6 +6,15 @@ This repository already supports `arm64` via the Rust `aarch64` targets used in 
 
 Use this when you want a dynamically linked Linux `arm64` binary.
 
+If `cargo build --target aarch64-unknown-linux-gnu` fails with `can't find crate for core`
+or `can't find crate for std`, your current Rust installation does not include the standard
+library for that target. In practice this usually means Rust was installed from a distro
+package instead of `rustup`, so `rustup target add aarch64-unknown-linux-gnu` is not
+available. Fix that by either:
+
+1. installing Rust through `rustup` and then adding the target, or
+2. building for your host target instead of `aarch64-unknown-linux-gnu`.
+
 ### Build on a native arm64 Linux machine
 
 1. Install system dependencies.
@@ -45,6 +54,44 @@ GURK_TARGET=aarch64-unknown-linux-gnu cargo xtask dist
 ```text
 dist/gurk-aarch64-unknown-linux-gnu.tar.gz
 ```
+
+### Build a UBports 24.04 click package
+
+Use this when you want an Ubuntu Touch package that installs on an `arm64` device and opens `gurk` inside a terminal window.
+
+1. Install the cross-build and click packaging dependencies.
+
+```shell
+sudo apt-get update
+sudo apt-get install -y protobuf-compiler perl gcc-aarch64-linux-gnu click
+```
+
+2. Add the Rust target.
+
+```shell
+rustup target add aarch64-unknown-linux-gnu
+```
+
+3. Build the click package.
+
+```shell
+cargo xtask click
+```
+
+4. Find the output in `dist/`. The generated file name follows this pattern:
+
+```text
+dist/gurk.boxdot_<version>_arm64.click
+```
+
+5. Copy the click package to the device and install it.
+
+```shell
+adb push dist/gurk.boxdot_<version>_arm64.click /home/phablet/
+adb shell pkcon install-local --allow-untrusted /home/phablet/gurk.boxdot_<version>_arm64.click
+```
+
+6. Launch `Gurk` from the app drawer. Ubuntu Touch opens it in a terminal window because the packaged desktop file sets `Terminal=true`.
 
 ### Cross-compile from x86_64 Linux
 
