@@ -100,7 +100,10 @@ fn manifest(version: &str) -> String {
             "    }}\n",
             "  }}\n",
             "}}\n"
-        )
+        ),
+        PACKAGE_NAME = PACKAGE_NAME,
+        version = version,
+        FRAMEWORK = FRAMEWORK,
     )
 }
 
