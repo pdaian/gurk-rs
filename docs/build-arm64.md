@@ -78,6 +78,13 @@ rustup target add aarch64-unknown-linux-gnu
 cargo xtask click
 ```
 
+If that fails with `click: command not found`, install the Ubuntu Click CLI and rerun the command:
+
+```shell
+sudo apt-get update
+sudo apt-get install -y click
+```
+
 4. Find the output in `dist/`. The generated file name follows this pattern:
 
 ```text

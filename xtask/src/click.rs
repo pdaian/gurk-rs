@@ -26,7 +26,11 @@ impl flags::Click {
         stage_package(&stage_dir, &version)?;
 
         let _pushd = sh.push_dir(&dist_dir);
-        cmd!(sh, "click build ubports-click --no-validate").run()?;
+        cmd!(sh, "click build ubports-click --no-validate")
+            .run()
+            .context(
+                "failed to run `click build`; install the Ubuntu Click CLI first, for example with `sudo apt-get install -y click`",
+            )?;
 
         Ok(())
     }
@@ -112,13 +116,8 @@ fn copy_file(src: &Path, dst: &Path) -> Result<()> {
         bail!("missing required file: {}", src.display());
     }
 
-    fs::copy(src, dst).with_context(|| {
-        format!(
-            "failed to copy {} to {}",
-            src.display(),
-            dst.display()
-        )
-    })?;
+    fs::copy(src, dst)
+        .with_context(|| format!("failed to copy {} to {}", src.display(), dst.display()))?;
     Ok(())
 }
 
