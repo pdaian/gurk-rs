@@ -6784,6 +6784,7 @@ dependencies = [
  "pulldown-cmark",
  "semver",
  "tar",
+ "toml",
  "xflags",
  "xshell",
 ]

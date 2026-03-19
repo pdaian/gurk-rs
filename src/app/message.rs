@@ -791,8 +791,8 @@ impl App {
         call_event: &presage::proto::sync_message::CallEvent,
         sync_sender_id: Uuid,
     ) {
-        let Some(peer_id) = call_event.peer_id.as_deref() else {
-            info!("skipping call event without peer id");
+        let Some(conversation_id) = call_event.conversation_id.as_deref() else {
+            info!("skipping call event without conversation id");
             return;
         };
         let Some(timestamp) = call_event.timestamp else {
@@ -803,14 +803,14 @@ impl App {
             return;
         };
 
-        let Some(channel_idx) = self.ensure_call_event_channel(peer_id).await else {
+        let Some(channel_idx) = self.ensure_call_event_channel(conversation_id).await else {
             info!("skipping call event for unknown channel");
             return;
         };
 
         let from_id = match (
             sync_call_event_direction(call_event.direction),
-            parse_uuid(None, Some(peer_id)),
+            parse_uuid(None, Some(conversation_id)),
         ) {
             (CallDirection::Incoming, Some(peer_uuid)) => peer_uuid,
             (CallDirection::Outgoing, _) => self.user_id,
