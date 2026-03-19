@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use toml::Value;
+use toml::Table;
 use xshell::{Shell, cmd};
 
 use crate::{flags, project_root};
@@ -72,12 +72,12 @@ fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
 
 fn package_version() -> Result<String> {
     let cargo_toml = fs::read_to_string(project_root().join("Cargo.toml"))?;
-    let value: Value = cargo_toml.parse()?;
+    let value: Table = toml::from_str(&cargo_toml)?;
     value
         .get("package")
-        .and_then(Value::as_table)
+        .and_then(toml::Value::as_table)
         .and_then(|package| package.get("version"))
-        .and_then(Value::as_str)
+        .and_then(toml::Value::as_str)
         .map(ToOwned::to_owned)
         .context("failed to read package.version from Cargo.toml")
 }
