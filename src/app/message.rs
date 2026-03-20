@@ -676,19 +676,27 @@ impl App {
     }
 
     fn notify(&self, summary: &str, text: &str) {
-        if self.config.notifications.enabled
-            && let Err(e) = notify_rust::Notification::new()
-                .summary(if self.config.notifications.show_message_chat {
-                    summary
-                } else {
-                    "gurk"
-                })
-                .body(if self.config.notifications.show_message_text {
-                    text
-                } else {
-                    "New message!"
-                })
-                .show()
+        if !self.config.notifications.enabled {
+            return;
+        }
+
+        let summary =
+            super::escape_notification_text(if self.config.notifications.show_message_chat {
+                summary
+            } else {
+                "gurk"
+            });
+        let body =
+            super::escape_notification_text(if self.config.notifications.show_message_text {
+                text
+            } else {
+                "New message!"
+            });
+
+        if let Err(e) = notify_rust::Notification::new()
+            .summary(&summary)
+            .body(&body)
+            .show()
         {
             error!("failed to send notification: {}", e);
         }

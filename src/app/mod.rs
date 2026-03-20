@@ -356,6 +356,12 @@ pub(super) fn notification_text_for_attachments(attachments: &[Attachment]) -> O
     }
 }
 
+pub(super) fn escape_notification_text(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 pub(super) fn add_emoji_from_sticker(body: &mut Option<String>, sticker: Option<Sticker>) {
     if let Some(Sticker { emoji: Some(e), .. }) = sticker {
         *body = Some(format!("<{e}>"));
@@ -432,6 +438,14 @@ pub(crate) mod tests {
         app.channels.state.select(Some(0));
 
         (app, events, sent_messages)
+    }
+
+    #[test]
+    fn test_escape_notification_text() {
+        assert_eq!(
+            escape_notification_text("A & B <attachment>"),
+            "A &amp; B &lt;attachment&gt;"
+        );
     }
 
     #[tokio::test]

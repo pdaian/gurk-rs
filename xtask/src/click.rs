@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use toml::Table;
-use xshell::{Shell, cmd};
+use xshell::{cmd, Shell};
 
 use crate::{flags, project_root};
 
