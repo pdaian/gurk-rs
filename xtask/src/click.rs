@@ -63,7 +63,7 @@ fn build_binary(sh: &Shell) -> Result<()> {
 
 fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
     let packaging_dir = project_root().join("packaging/ubports-click");
-    let framework = click_framework();
+    let framework = click_framework()?;
     let policy_version = policy_version(&framework);
 
     copy_file(
@@ -112,11 +112,67 @@ fn package_version() -> Result<String> {
         .context("failed to read package.version from Cargo.toml")
 }
 
-fn click_framework() -> String {
-    std::env::var("GURK_CLICK_FRAMEWORK")
+fn click_framework() -> Result<String> {
+    let requested = std::env::var("GURK_CLICK_FRAMEWORK")
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_FRAMEWORK.to_owned())
+        .map(|value| value.trim().to_owned());
+    let available = available_frameworks()?;
+
+    if let Some(requested) = requested {
+        if available.iter().any(|framework| framework == &requested) {
+            return Ok(requested);
+        }
+
+        bail!(
+            "requested click framework `{requested}` is not installed. Available frameworks: {}. \
+             Install the matching UBports framework or set GURK_CLICK_FRAMEWORK to one of the installed values.",
+            format_frameworks(&available),
+        );
+    }
+
+    if available.iter().any(|framework| framework == DEFAULT_FRAMEWORK) {
+        return Ok(DEFAULT_FRAMEWORK.to_owned());
+    }
+
+    if available.len() == 1 {
+        return Ok(available[0].clone());
+    }
+
+    bail!(
+        "no usable default click framework found. Preferred framework `{DEFAULT_FRAMEWORK}` is not installed. \
+         Available frameworks: {}. Install `{DEFAULT_FRAMEWORK}` or set GURK_CLICK_FRAMEWORK explicitly.",
+        format_frameworks(&available),
+    );
+}
+
+fn available_frameworks() -> Result<Vec<String>> {
+    let output = Command::new("click")
+        .args(["framework", "list"])
+        .output()
+        .context("failed to run `click framework list`")?;
+
+    if !output.status.success() {
+        bail!(
+            "`click framework list` exited with status {}; verify the Click CLI installation",
+            output.status
+        );
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect())
+}
+
+fn format_frameworks(frameworks: &[String]) -> String {
+    if frameworks.is_empty() {
+        "none".to_owned()
+    } else {
+        frameworks.join(", ")
+    }
 }
 
 fn policy_version(framework: &str) -> String {
