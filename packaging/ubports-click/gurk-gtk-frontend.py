@@ -11,13 +11,16 @@ except ImportError as exc:
 gi.require_version("Gtk", "3.0")
 gi.require_version("Vte", "2.91")
 
-from gi.repository import GLib, Gtk, Pango, Vte
+from gi.repository import Gio, GLib, Gtk, Pango, Vte
 
 
 class GurkFrontend(Gtk.Application):
     def __init__(self, backend_argv):
-        super().__init__(application_id="org.boxdot.gurk")
+        # Ubuntu Touch confinement can block owning a custom D-Bus application ID.
+        # Run as a local app so activation still creates a window on-device.
+        super().__init__(flags=Gio.ApplicationFlags.NON_UNIQUE)
         self._backend_argv = backend_argv
+        self._backend_cwd = os.path.dirname(os.path.abspath(backend_argv[0]))
         self._exit_status = 1
         self._terminal = None
         self._child_pid = None
@@ -59,7 +62,7 @@ class GurkFrontend(Gtk.Application):
 
         self._terminal.spawn_async(
             Vte.PtyFlags.DEFAULT,
-            None,
+            self._backend_cwd,
             self._backend_argv,
             envv,
             GLib.SpawnFlags(0),
