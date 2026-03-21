@@ -29,7 +29,7 @@ cargo install --git https://github.com/boxdot/gurk-rs gurk
 ```
 
 For local `arm64` / `aarch64` builds, see [docs/build-arm64.md](docs/build-arm64.md).
-For a UBports click package that launches `gurk` in a terminal window, see the same guide.
+For a UBports click package that opens a GTK window embedding the `gurk` terminal UI, see the same guide.
 
 ## Arch Linux
 

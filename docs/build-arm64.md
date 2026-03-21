@@ -58,7 +58,7 @@ dist/gurk-aarch64-unknown-linux-gnu.tar.gz
 ### Build a UBports click package
 
 Use this when you want an Ubuntu Touch package that installs on an `arm64` device.
-The build now uses `clickable` to assemble the final package and defaults to the supported `ubuntu-sdk-20.04.1` framework.
+The build now uses `clickable` to assemble the final package and defaults to the supported `ubuntu-sdk-20.04.1` framework. The packaged app opens a GTK window with an embedded terminal running the standard `gurk` UI, and falls back to the platform terminal app if GTK/VTE bindings are unavailable at runtime.
 
 1. Install the cross-build and Clickable packaging dependencies.
 

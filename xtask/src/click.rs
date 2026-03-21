@@ -3,9 +3,9 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use toml::Table;
-use xshell::{Shell, cmd};
+use xshell::{cmd, Shell};
 
 use crate::{flags, project_root};
 
@@ -74,10 +74,15 @@ fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
         &packaging_dir.join("gurk-launch"),
         &stage_dir.join("gurk-launch"),
     )?;
+    copy_file(
+        &packaging_dir.join("gurk-gtk-frontend.py"),
+        &stage_dir.join("gurk-gtk-frontend.py"),
+    )?;
     copy_file(&packaging_dir.join("icon.svg"), &stage_dir.join("icon.svg"))?;
 
     let launcher = stage_dir.join("gurk-launch");
     set_executable(&launcher)?;
+    set_executable(&stage_dir.join("gurk-gtk-frontend.py"))?;
 
     let binary = Path::new("target")
         .join(TARGET)
