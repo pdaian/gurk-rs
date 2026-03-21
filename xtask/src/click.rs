@@ -1,5 +1,7 @@
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 use toml::Table;
@@ -39,10 +41,17 @@ impl flags::Click {
 }
 
 fn ensure_click_available(sh: &Shell) -> Result<()> {
-    cmd!(sh, "click --version")
-        .run()
-        .with_context(|| format!("failed to find `click`; {CLICK_INSTALL_HINT}"))?;
-    Ok(())
+    let _ = sh;
+
+    match Command::new("click").arg("--help").status() {
+        Ok(status) if status.success() => Ok(()),
+        Ok(status) => bail!(
+            "`click --help` exited with status {status}; verify the Click CLI installation"
+        ),
+        Err(err) if err.kind() == ErrorKind::NotFound => Err(err)
+            .with_context(|| format!("failed to find `click`; {CLICK_INSTALL_HINT}")),
+        Err(err) => Err(err).context("failed to run `click --help`"),
+    }
 }
 
 fn build_binary(sh: &Shell) -> Result<()> {
