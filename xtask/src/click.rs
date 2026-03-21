@@ -10,7 +10,8 @@ use xshell::{cmd, Shell};
 use crate::{flags, project_root};
 
 const TARGET: &str = "aarch64-unknown-linux-gnu";
-const FRAMEWORK: &str = "ubuntu-sdk-24.04";
+const DEFAULT_FRAMEWORK: &str = "ubuntu-sdk-20.04.1";
+const DEFAULT_POLICY_VERSION: &str = "20.04";
 const PACKAGE_NAME: &str = "gurk.boxdot";
 const APP_NAME: &str = "gurk";
 const CLICK_INSTALL_HINT: &str =
@@ -32,7 +33,7 @@ impl flags::Click {
         stage_package(&stage_dir, &version)?;
 
         let _pushd = sh.push_dir(&dist_dir);
-        cmd!(sh, "click build ubports-click --no-validate")
+        cmd!(sh, "click build ubports-click")
             .run()
             .with_context(|| format!("failed to run `click build`; {CLICK_INSTALL_HINT}"))?;
 
@@ -45,11 +46,12 @@ fn ensure_click_available(sh: &Shell) -> Result<()> {
 
     match Command::new("click").arg("--help").status() {
         Ok(status) if status.success() => Ok(()),
-        Ok(status) => bail!(
-            "`click --help` exited with status {status}; verify the Click CLI installation"
-        ),
-        Err(err) if err.kind() == ErrorKind::NotFound => Err(err)
-            .with_context(|| format!("failed to find `click`; {CLICK_INSTALL_HINT}")),
+        Ok(status) => {
+            bail!("`click --help` exited with status {status}; verify the Click CLI installation")
+        }
+        Err(err) if err.kind() == ErrorKind::NotFound => {
+            Err(err).with_context(|| format!("failed to find `click`; {CLICK_INSTALL_HINT}"))
+        }
         Err(err) => Err(err).context("failed to run `click --help`"),
     }
 }
@@ -61,6 +63,8 @@ fn build_binary(sh: &Shell) -> Result<()> {
 
 fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
     let packaging_dir = project_root().join("packaging/ubports-click");
+    let framework = click_framework();
+    let policy_version = policy_version(&framework);
 
     copy_file(
         &packaging_dir.join("gurk.apparmor"),
@@ -86,8 +90,12 @@ fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
     copy_file(&binary, &stage_dir.join(APP_NAME))?;
     set_executable(&stage_dir.join(APP_NAME))?;
 
-    let manifest = manifest(version);
+    let manifest = manifest(version, &framework);
     fs::write(stage_dir.join("manifest.json"), manifest)?;
+    fs::write(
+        stage_dir.join("gurk.apparmor"),
+        apparmor_policy(&policy_version),
+    )?;
 
     Ok(())
 }
@@ -104,7 +112,21 @@ fn package_version() -> Result<String> {
         .context("failed to read package.version from Cargo.toml")
 }
 
-fn manifest(version: &str) -> String {
+fn click_framework() -> String {
+    std::env::var("GURK_CLICK_FRAMEWORK")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_FRAMEWORK.to_owned())
+}
+
+fn policy_version(framework: &str) -> String {
+    framework
+        .strip_prefix("ubuntu-sdk-")
+        .map(str::to_owned)
+        .unwrap_or_else(|| DEFAULT_POLICY_VERSION.to_owned())
+}
+
+fn manifest(version: &str, framework: &str) -> String {
     format!(
         concat!(
             "{{\n",
@@ -114,7 +136,7 @@ fn manifest(version: &str) -> String {
             "  \"title\": \"Gurk\",\n",
             "  \"description\": \"Signal messenger client for terminal\",\n",
             "  \"maintainer\": \"boxdot <d@zerovolt.org>\",\n",
-            "  \"framework\": \"{FRAMEWORK}\",\n",
+            "  \"framework\": \"{framework}\",\n",
             "  \"hooks\": {{\n",
             "    \"gurk\": {{\n",
             "      \"apparmor\": \"gurk.apparmor\",\n",
@@ -125,7 +147,21 @@ fn manifest(version: &str) -> String {
         ),
         PACKAGE_NAME = PACKAGE_NAME,
         version = version,
-        FRAMEWORK = FRAMEWORK,
+        framework = framework,
+    )
+}
+
+fn apparmor_policy(policy_version: &str) -> String {
+    format!(
+        concat!(
+            "{{\n",
+            "  \"policy_version\": {policy_version},\n",
+            "  \"policy_groups\": [\n",
+            "    \"networking\"\n",
+            "  ]\n",
+            "}}\n"
+        ),
+        policy_version = policy_version,
     )
 }
 
