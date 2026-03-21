@@ -2,4 +2,13 @@
 set -eu
 
 APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+if command -v lomiri-terminal-app >/dev/null 2>&1; then
+    exec lomiri-terminal-app -e "$APP_DIR/gurk" "$@"
+fi
+
+if command -v ubuntu-terminal-app >/dev/null 2>&1; then
+    exec ubuntu-terminal-app -e "$APP_DIR/gurk" "$@"
+fi
+
 exec "$APP_DIR/gurk" "$@"
