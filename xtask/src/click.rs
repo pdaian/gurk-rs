@@ -11,12 +11,16 @@ const TARGET: &str = "aarch64-unknown-linux-gnu";
 const FRAMEWORK: &str = "ubuntu-sdk-24.04";
 const PACKAGE_NAME: &str = "gurk.boxdot";
 const APP_NAME: &str = "gurk";
+const CLICK_INSTALL_HINT: &str =
+    "install the Ubuntu Click CLI first, for example with `sudo apt-get install -y click`";
 
 impl flags::Click {
     pub(crate) fn run(self, sh: &Shell) -> Result<()> {
         let version = package_version()?;
         let dist_dir = project_root().join("dist");
         let stage_dir = dist_dir.join("ubports-click");
+
+        ensure_click_available(sh)?;
 
         sh.create_dir(&dist_dir)?;
         sh.remove_path(&stage_dir)?;
@@ -28,12 +32,17 @@ impl flags::Click {
         let _pushd = sh.push_dir(&dist_dir);
         cmd!(sh, "click build ubports-click --no-validate")
             .run()
-            .context(
-                "failed to run `click build`; install the Ubuntu Click CLI first, for example with `sudo apt-get install -y click`",
-            )?;
+            .with_context(|| format!("failed to run `click build`; {CLICK_INSTALL_HINT}"))?;
 
         Ok(())
     }
+}
+
+fn ensure_click_available(sh: &Shell) -> Result<()> {
+    cmd!(sh, "click --version")
+        .run()
+        .with_context(|| format!("failed to find `click`; {CLICK_INSTALL_HINT}"))?;
+    Ok(())
 }
 
 fn build_binary(sh: &Shell) -> Result<()> {
