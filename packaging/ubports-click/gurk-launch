@@ -68,11 +68,11 @@ if command -v python3 >/dev/null 2>&1; then
 fi
 
 if command -v lomiri-terminal-app >/dev/null 2>&1; then
-    exec lomiri-terminal-app -e "$BACKEND" "$@"
+    SHELL="$BACKEND" exec lomiri-terminal-app --workdir "$APP_DIR"
 fi
 
 if command -v ubuntu-terminal-app >/dev/null 2>&1; then
-    exec ubuntu-terminal-app -e "$BACKEND" "$@"
+    SHELL="$BACKEND" exec ubuntu-terminal-app
 fi
 
 run_in_terminal "$@"
