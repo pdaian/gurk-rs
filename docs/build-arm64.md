@@ -58,7 +58,7 @@ dist/gurk-aarch64-unknown-linux-gnu.tar.gz
 ### Build a UBports click package
 
 Use this when you want an Ubuntu Touch package that installs on an `arm64` device.
-The build now uses `clickable` to assemble the final package and defaults to the supported `ubuntu-sdk-20.04.1` framework. The packaged app opens a GTK window with an embedded terminal running the standard `gurk` UI, and falls back to the platform terminal app if GTK/VTE bindings are unavailable at runtime.
+The build uses `clickable` to assemble the final package and now defaults to the supported `ubuntu-touch-24.04-1.x` framework. The generated Click follows the Ubuntu Touch 24.04 packaging requirements by leaving the manifest framework as `@CLICK_FRAMEWORK@` and the AppArmor policy version as `@APPARMOR_POLICY@` for Clickable to fill at build time. The packaged app opens a GTK window with an embedded terminal running the standard `gurk` UI, and falls back to the platform terminal app if GTK/VTE bindings are unavailable at runtime.
 
 1. Install the cross-build and Clickable packaging dependencies.
 
@@ -80,10 +80,12 @@ rustup target add aarch64-unknown-linux-gnu
 cargo xtask click
 ```
 
-To target a different framework explicitly, set `GURK_CLICK_FRAMEWORK` before building. For example:
+Clickable 8.4.0 or newer is required.
+
+To target a different framework explicitly, set `CLICKABLE_FRAMEWORK` before building. `GURK_CLICK_FRAMEWORK` is still accepted as a backwards-compatible fallback. For example:
 
 ```shell
-GURK_CLICK_FRAMEWORK=ubuntu-sdk-20.04.1 cargo xtask click
+CLICKABLE_FRAMEWORK=ubuntu-touch-24.04-1.x cargo xtask click
 ```
 
 If that fails with `clickable: command not found`, install Clickable and rerun the command:

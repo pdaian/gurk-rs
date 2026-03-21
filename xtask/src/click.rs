@@ -10,8 +10,7 @@ use xshell::{cmd, Shell};
 use crate::{flags, project_root};
 
 const TARGET: &str = "aarch64-unknown-linux-gnu";
-const DEFAULT_FRAMEWORK: &str = "ubuntu-sdk-20.04.1";
-const DEFAULT_POLICY_VERSION: &str = "20.04";
+const DEFAULT_FRAMEWORK: &str = "ubuntu-touch-24.04-1.x";
 const PACKAGE_NAME: &str = "gurk.boxdot";
 const APP_NAME: &str = "gurk";
 const CLICKABLE_INSTALL_HINT: &str =
@@ -60,7 +59,6 @@ fn build_binary(sh: &Shell) -> Result<()> {
 fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
     let packaging_dir = project_root().join("packaging/ubports-click");
     let framework = clickable_framework();
-    let policy_version = policy_version(&framework);
 
     copy_file(
         &packaging_dir.join("gurk.apparmor"),
@@ -91,12 +89,9 @@ fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
     copy_file(&binary, &stage_dir.join(APP_NAME))?;
     set_executable(&stage_dir.join(APP_NAME))?;
 
-    let manifest = manifest(version, &framework);
+    let manifest = manifest(version);
     fs::write(stage_dir.join("manifest.json"), manifest)?;
-    fs::write(
-        stage_dir.join("gurk.apparmor"),
-        apparmor_policy(&policy_version),
-    )?;
+    fs::write(stage_dir.join("gurk.apparmor"), apparmor_policy())?;
     fs::write(
         stage_dir.join("clickable.yaml"),
         clickable_config(&framework),
@@ -118,22 +113,15 @@ fn package_version() -> Result<String> {
 }
 
 fn clickable_framework() -> String {
-    std::env::var("GURK_CLICK_FRAMEWORK")
+    std::env::var("CLICKABLE_FRAMEWORK")
+        .or_else(|_| std::env::var("GURK_CLICK_FRAMEWORK"))
         .ok()
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DEFAULT_FRAMEWORK.to_owned())
 }
 
-fn policy_version(framework: &str) -> String {
-    match framework.strip_prefix("ubuntu-sdk-") {
-        Some("20.04") | Some("20.04.1") => "20.04".to_owned(),
-        Some(version) => version.to_owned(),
-        None => DEFAULT_POLICY_VERSION.to_owned(),
-    }
-}
-
-fn manifest(version: &str, framework: &str) -> String {
+fn manifest(version: &str) -> String {
     format!(
         concat!(
             "{{\n",
@@ -143,7 +131,7 @@ fn manifest(version: &str, framework: &str) -> String {
             "  \"title\": \"Gurk\",\n",
             "  \"description\": \"Signal messenger client for terminal\",\n",
             "  \"maintainer\": \"boxdot <d@zerovolt.org>\",\n",
-            "  \"framework\": \"{framework}\",\n",
+            "  \"framework\": \"@CLICK_FRAMEWORK@\",\n",
             "  \"hooks\": {{\n",
             "    \"gurk\": {{\n",
             "      \"apparmor\": \"gurk.apparmor\",\n",
@@ -154,14 +142,13 @@ fn manifest(version: &str, framework: &str) -> String {
         ),
         PACKAGE_NAME = PACKAGE_NAME,
         version = version,
-        framework = framework,
     )
 }
 
 fn clickable_config(framework: &str) -> String {
     format!(
         concat!(
-            "clickable_minimum_required: 8.0.0\n",
+            "clickable_minimum_required: 8.4.0\n",
             "builder: precompiled\n",
             "framework: {framework}\n",
             "restrict_arch: arm64\n"
@@ -170,17 +157,14 @@ fn clickable_config(framework: &str) -> String {
     )
 }
 
-fn apparmor_policy(policy_version: &str) -> String {
-    format!(
-        concat!(
-            "{{\n",
-            "  \"policy_version\": {policy_version},\n",
-            "  \"policy_groups\": [\n",
-            "    \"networking\"\n",
-            "  ]\n",
-            "}}\n"
-        ),
-        policy_version = policy_version,
+fn apparmor_policy() -> &'static str {
+    concat!(
+        "{\n",
+        "  \"policy_version\": \"@APPARMOR_POLICY@\",\n",
+        "  \"policy_groups\": [\n",
+        "    \"networking\"\n",
+        "  ]\n",
+        "}\n"
     )
 }
 
