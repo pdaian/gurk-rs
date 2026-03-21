@@ -58,7 +58,7 @@ dist/gurk-aarch64-unknown-linux-gnu.tar.gz
 ### Build a UBports click package
 
 Use this when you want an Ubuntu Touch package that installs on an `arm64` device and opens `gurk` inside a terminal window.
-The build defaults to the validated `ubuntu-sdk-20.04.1` framework, which matches current Ubuntu Touch devices more reliably than `ubuntu-sdk-24.04`.
+The build defaults to the `ubuntu-sdk-24.04` framework.
 
 1. Install the cross-build and click packaging dependencies.
 
@@ -82,7 +82,7 @@ cargo xtask click
 To target a different framework explicitly, set `GURK_CLICK_FRAMEWORK` before building. For example:
 
 ```shell
-GURK_CLICK_FRAMEWORK=ubuntu-sdk-24.04 cargo xtask click
+GURK_CLICK_FRAMEWORK=ubuntu-sdk-20.04.1 cargo xtask click
 ```
 
 If that fails with `click: command not found`, install the Ubuntu Click CLI and rerun the command:

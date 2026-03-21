@@ -10,8 +10,8 @@ use xshell::{cmd, Shell};
 use crate::{flags, project_root};
 
 const TARGET: &str = "aarch64-unknown-linux-gnu";
-const DEFAULT_FRAMEWORK: &str = "ubuntu-sdk-20.04.1";
-const DEFAULT_POLICY_VERSION: &str = "20.04";
+const DEFAULT_FRAMEWORK: &str = "ubuntu-sdk-24.04";
+const DEFAULT_POLICY_VERSION: &str = "24.04";
 const PACKAGE_NAME: &str = "gurk.boxdot";
 const APP_NAME: &str = "gurk";
 const CLICK_INSTALL_HINT: &str =
