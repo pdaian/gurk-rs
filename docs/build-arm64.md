@@ -111,6 +111,93 @@ adb shell pkcon install-local --allow-untrusted /home/phablet/gurk.boxdot_<versi
 
 6. Launch `Gurk` from the app drawer.
 
+### Debug when no window appears on the device
+
+If tapping `Gurk` does nothing, debug the packaged launcher directly on the device first. The click package starts `gurk-launch`, which tries the GTK/VTE frontend first and then falls back to `lomiri-terminal-app`, `ubuntu-terminal-app`, or another terminal if GTK/VTE is unavailable.
+
+1. Open a shell on the device.
+
+```shell
+adb shell
+```
+
+2. Find the installed click app directory.
+
+```shell
+find /opt/click.ubuntu.com -maxdepth 3 -type f -name gurk-launch 2>/dev/null
+```
+
+You should see a path ending in `.../gurk.boxdot/current/gurk-launch`.
+
+3. Change into that directory and confirm the packaged files are present.
+
+```shell
+cd /opt/click.ubuntu.com/gurk.boxdot/current
+ls -l
+```
+
+At minimum, verify that `gurk`, `gurk-launch`, `gurk.desktop`, and `gurk-gtk-frontend.py` exist.
+
+4. Launch the packaged app from the shell and keep all output visible.
+
+```shell
+./gurk-launch
+```
+
+If the app exits immediately, run the launcher in verbose mode and enable trace logging for the Rust backend.
+
+```shell
+RUST_LOG=gurk=trace,presage=trace,libsignal=trace ./gurk-launch --verbose
+```
+
+`gurk --verbose` writes `gurk.log` in the current working directory, so when started from the package directory the log file will be:
+
+```text
+/opt/click.ubuntu.com/gurk.boxdot/current/gurk.log
+```
+
+5. Inspect the backend log.
+
+```shell
+sed -n '1,200p' gurk.log
+tail -n 100 gurk.log
+```
+
+6. If the GTK window itself may be the problem, bypass `gurk-launch` and start the frontend script directly.
+
+```shell
+python3 ./gurk-gtk-frontend.py ./gurk
+```
+
+For maximum detail:
+
+```shell
+RUST_LOG=gurk=trace,presage=trace,libsignal=trace python3 ./gurk-gtk-frontend.py ./gurk --verbose
+```
+
+This isolates whether the failure is in the shell launcher, the GTK/VTE frontend, or the Rust backend.
+
+7. If neither command shows a window, verify the GTK dependencies that the launcher checks before using the embedded frontend.
+
+```shell
+python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("Vte", "2.91"); from gi.repository import Gtk, Vte; print("gtk-vte-ok")'
+which lomiri-terminal-app
+which ubuntu-terminal-app
+```
+
+8. When you need a host-side copy of the device log, pull it back with `adb`.
+
+```shell
+exit
+adb pull /opt/click.ubuntu.com/gurk.boxdot/current/gurk.log .
+```
+
+Common outcomes:
+
+- If `python3 ./gurk-gtk-frontend.py ./gurk` fails before the Rust app starts, the issue is in the packaged GTK/PyGObject/VTE path.
+- If the frontend opens but `gurk.log` shows startup failures, the issue is in `gurk` itself, usually config, linking, passphrase, or storage startup.
+- If the frontend path is unavailable but `lomiri-terminal-app` exists, `./gurk-launch` should still open a terminal window; if it does not, focus on the terminal-app fallback on that device image.
+
 ### Cross-compile from x86_64 Linux
 
 The repository already sets `aarch64-linux-gnu-gcc` as the linker in [`.cargo/config.toml`](../.cargo/config.toml).
