@@ -2,20 +2,77 @@
 set -eu
 
 APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+BACKEND="$APP_DIR/gurk"
+
+run_in_terminal() {
+    if [ -n "${TERMINAL:-}" ] && command -v "$TERMINAL" >/dev/null 2>&1; then
+        exec "$TERMINAL" -e "$BACKEND" "$@"
+    fi
+
+    if command -v x-terminal-emulator >/dev/null 2>&1; then
+        exec x-terminal-emulator -e "$BACKEND" "$@"
+    fi
+
+    if command -v kgx >/dev/null 2>&1; then
+        exec kgx -- "$BACKEND" "$@"
+    fi
+
+    if command -v gnome-terminal >/dev/null 2>&1; then
+        exec gnome-terminal -- "$BACKEND" "$@"
+    fi
+
+    if command -v ptyxis >/dev/null 2>&1; then
+        exec ptyxis --standalone --execute "$BACKEND" "$@"
+    fi
+
+    if command -v konsole >/dev/null 2>&1; then
+        exec konsole -e "$BACKEND" "$@"
+    fi
+
+    if command -v xfce4-terminal >/dev/null 2>&1; then
+        exec xfce4-terminal -x "$BACKEND" "$@"
+    fi
+
+    if command -v mate-terminal >/dev/null 2>&1; then
+        exec mate-terminal -- "$BACKEND" "$@"
+    fi
+
+    if command -v tilix >/dev/null 2>&1; then
+        exec tilix -- "$BACKEND" "$@"
+    fi
+
+    if command -v alacritty >/dev/null 2>&1; then
+        exec alacritty -e "$BACKEND" "$@"
+    fi
+
+    if command -v kitty >/dev/null 2>&1; then
+        exec kitty "$BACKEND" "$@"
+    fi
+
+    if command -v wezterm >/dev/null 2>&1; then
+        exec wezterm start -- "$BACKEND" "$@"
+    fi
+
+    if command -v foot >/dev/null 2>&1; then
+        exec foot "$BACKEND" "$@"
+    fi
+
+    exec "$BACKEND" "$@"
+}
 
 if command -v python3 >/dev/null 2>&1; then
     FRONTEND="$APP_DIR/gurk-gtk-frontend.py"
     if [ -f "$FRONTEND" ] && python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("Vte", "2.91"); from gi.repository import Gtk, Vte' >/dev/null 2>&1; then
-        exec python3 "$FRONTEND" "$APP_DIR/gurk" "$@"
+        exec python3 "$FRONTEND" "$BACKEND" "$@"
     fi
 fi
 
 if command -v lomiri-terminal-app >/dev/null 2>&1; then
-    exec lomiri-terminal-app -e "$APP_DIR/gurk" "$@"
+    exec lomiri-terminal-app -e "$BACKEND" "$@"
 fi
 
 if command -v ubuntu-terminal-app >/dev/null 2>&1; then
-    exec ubuntu-terminal-app -e "$APP_DIR/gurk" "$@"
+    exec ubuntu-terminal-app -e "$BACKEND" "$@"
 fi
 
-exec "$APP_DIR/gurk" "$@"
+run_in_terminal "$@"
