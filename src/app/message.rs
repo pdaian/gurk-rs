@@ -42,10 +42,8 @@ impl App {
             self.handle_read(read);
         }
 
-        if let (
-            Metadata { sender, .. },
-            ContentBody::CallMessage(call_message),
-        ) = (&content.metadata, &content.body)
+        if let (Metadata { sender, .. }, ContentBody::CallMessage(call_message)) =
+            (&content.metadata, &content.body)
             && let Some(text) = call_message_offer_text(call_message)
         {
             let from_id = sender.raw_uuid();
@@ -228,14 +226,14 @@ impl App {
                             message:
                                 Some(DataMessage {
                                     mut body,
-                                profile_key,
-                                group_v2,
-                                group_call_update,
-                                quote,
-                                attachments: attachment_pointers,
-                                sticker,
-                                body_ranges,
-                                reaction: None,
+                                    profile_key,
+                                    group_v2,
+                                    group_call_update,
+                                    quote,
+                                    attachments: attachment_pointers,
+                                    sticker,
+                                    body_ranges,
+                                    reaction: None,
                                     ..
                                 }),
                             ..

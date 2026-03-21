@@ -3,18 +3,19 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use toml::Table;
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 
 use crate::{flags, project_root};
 
 const TARGET: &str = "aarch64-unknown-linux-gnu";
-const DEFAULT_FRAMEWORK: &str = "ubuntu-sdk-24.04";
-const DEFAULT_POLICY_VERSION: &str = "24.04";
+const DEFAULT_FRAMEWORK: &str = "ubuntu-sdk-20.04.1";
+const DEFAULT_POLICY_VERSION: &str = "20.04";
 const PACKAGE_NAME: &str = "gurk.boxdot";
 const APP_NAME: &str = "gurk";
-const CLICKABLE_INSTALL_HINT: &str = "install Clickable first, for example with `pipx install clickable-ut`";
+const CLICKABLE_INSTALL_HINT: &str =
+    "install Clickable first, for example with `pipx install clickable-ut`";
 
 impl flags::Click {
     pub(crate) fn run(self, sh: &Shell) -> Result<()> {
@@ -41,11 +42,12 @@ fn ensure_clickable_available() -> Result<()> {
     match Command::new("clickable").arg("--version").status() {
         Ok(status) if status.success() => Ok(()),
         Ok(status) => {
-            bail!("`clickable --version` exited with status {status}; verify the Clickable installation")
+            bail!(
+                "`clickable --version` exited with status {status}; verify the Clickable installation"
+            )
         }
-        Err(err) if err.kind() == ErrorKind::NotFound => {
-            Err(err).with_context(|| format!("failed to find `clickable`; {CLICKABLE_INSTALL_HINT}"))
-        }
+        Err(err) if err.kind() == ErrorKind::NotFound => Err(err)
+            .with_context(|| format!("failed to find `clickable`; {CLICKABLE_INSTALL_HINT}")),
         Err(err) => Err(err).context("failed to run `clickable --version`"),
     }
 }
@@ -90,7 +92,10 @@ fn stage_package(stage_dir: &Path, version: &str) -> Result<()> {
         stage_dir.join("gurk.apparmor"),
         apparmor_policy(&policy_version),
     )?;
-    fs::write(stage_dir.join("clickable.yaml"), clickable_config(&framework))?;
+    fs::write(
+        stage_dir.join("clickable.yaml"),
+        clickable_config(&framework),
+    )?;
 
     Ok(())
 }
@@ -116,10 +121,11 @@ fn clickable_framework() -> String {
 }
 
 fn policy_version(framework: &str) -> String {
-    framework
-        .strip_prefix("ubuntu-sdk-")
-        .map(str::to_owned)
-        .unwrap_or_else(|| DEFAULT_POLICY_VERSION.to_owned())
+    match framework.strip_prefix("ubuntu-sdk-") {
+        Some("20.04") | Some("20.04.1") => "20.04".to_owned(),
+        Some(version) => version.to_owned(),
+        None => DEFAULT_POLICY_VERSION.to_owned(),
+    }
 }
 
 fn manifest(version: &str, framework: &str) -> String {
@@ -225,7 +231,10 @@ fn collect_click_files(dir: &Path, artifacts: &mut Vec<PathBuf>) -> Result<()> {
             continue;
         }
 
-        if path.extension().is_some_and(|extension| extension == "click") {
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "click")
+        {
             artifacts.push(path);
         }
     }

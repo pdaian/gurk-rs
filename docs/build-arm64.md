@@ -57,8 +57,8 @@ dist/gurk-aarch64-unknown-linux-gnu.tar.gz
 
 ### Build a UBports click package
 
-Use this when you want an Ubuntu Touch package that installs on an `arm64` device and opens `gurk` inside a terminal window.
-The build now uses `clickable` to assemble the final package and defaults to the `ubuntu-sdk-24.04` framework.
+Use this when you want an Ubuntu Touch package that installs on an `arm64` device.
+The build now uses `clickable` to assemble the final package and defaults to the supported `ubuntu-sdk-20.04.1` framework.
 
 1. Install the cross-build and Clickable packaging dependencies.
 
@@ -107,7 +107,7 @@ adb push dist/gurk.boxdot_<version>_arm64.click /home/phablet/
 adb shell pkcon install-local --allow-untrusted /home/phablet/gurk.boxdot_<version>_arm64.click
 ```
 
-6. Launch `Gurk` from the app drawer. Ubuntu Touch opens it in a terminal window because the packaged desktop file sets `Terminal=true`.
+6. Launch `Gurk` from the app drawer.
 
 ### Cross-compile from x86_64 Linux
 
