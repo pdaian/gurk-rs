@@ -58,13 +58,14 @@ dist/gurk-aarch64-unknown-linux-gnu.tar.gz
 ### Build a UBports click package
 
 Use this when you want an Ubuntu Touch package that installs on an `arm64` device and opens `gurk` inside a terminal window.
-The build prefers the `ubuntu-sdk-24.04` framework when it is installed.
+The build now uses `clickable` to assemble the final package and defaults to the `ubuntu-sdk-24.04` framework.
 
-1. Install the cross-build and click packaging dependencies.
+1. Install the cross-build and Clickable packaging dependencies.
 
 ```shell
 sudo apt-get update
-sudo apt-get install -y protobuf-compiler perl gcc-aarch64-linux-gnu click
+sudo apt-get install -y protobuf-compiler perl gcc-aarch64-linux-gnu pipx
+pipx install clickable-ut
 ```
 
 2. Add the Rust target.
@@ -79,41 +80,18 @@ rustup target add aarch64-unknown-linux-gnu
 cargo xtask click
 ```
 
-If exactly one Click framework is installed and it is not `ubuntu-sdk-24.04`, the build uses that installed framework automatically.
-If multiple frameworks are installed and `ubuntu-sdk-24.04` is not one of them, the build now stops with a clear error so you can choose the target explicitly.
-
 To target a different framework explicitly, set `GURK_CLICK_FRAMEWORK` before building. For example:
 
 ```shell
 GURK_CLICK_FRAMEWORK=ubuntu-sdk-20.04.1 cargo xtask click
 ```
 
-If the build previously printed:
-
-```text
-WARNING:root:Ignoring missing framework "ubuntu-sdk-24.04"
-```
-
-that means the local Click tool does not have that framework installed. Check what is available with:
-
-```shell
-click framework list
-```
-
-Then either:
-
-1. install the missing UBports framework so `ubuntu-sdk-24.04` is available, or
-2. rebuild against one of the installed frameworks:
-
-```shell
-GURK_CLICK_FRAMEWORK="$(click framework list | head -n1)" cargo xtask click
-```
-
-If that fails with `click: command not found`, install the Ubuntu Click CLI and rerun the command:
+If that fails with `clickable: command not found`, install Clickable and rerun the command:
 
 ```shell
 sudo apt-get update
-sudo apt-get install -y click
+sudo apt-get install -y pipx
+pipx install clickable-ut
 ```
 
 4. Find the output in `dist/`. The generated file name follows this pattern:
