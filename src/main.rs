@@ -24,7 +24,12 @@ use gurk::{
 };
 use gurk::{signal, ui};
 use presage::libsignal_service::content::Content;
-use ratatui::{Terminal, backend::CrosstermBackend};
+use ratatui::{
+    Terminal,
+    backend::CrosstermBackend,
+    layout::Alignment,
+    widgets::{Block, Borders, Paragraph},
+};
 use tokio::{runtime, select};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
@@ -119,32 +124,50 @@ pub enum Event {
 
 async fn run(config: Config, passphrase: Passphrase, relink: bool) -> anyhow::Result<()> {
     let local_pool = LocalPool::new();
+    let mut terminal = setup_terminal()?;
+    draw_loading(&mut terminal, "Starting gurk...")?;
 
-    let mut signal_manager =
-        signal::ensure_linked_device(relink, local_pool.clone(), &config, &passphrase).await?;
+    let init = async {
+        draw_loading(&mut terminal, "Linking device...")?;
+        let signal_manager =
+            signal::ensure_linked_device(relink, local_pool.clone(), &config, &passphrase).await?;
 
-    let mut storage: Box<dyn Storage> = {
-        let url = match config
-            .sqlite
-            .as_ref()
-            .map(|sqlite_config| sqlite_config.url.clone())
-        {
-            Some(url) => url,
-            None => Url::from_file_path(config.gurk_db_path())
-                .map_err(|_| anyhow!("failed to convert gurk db path to url"))?,
+        draw_loading(&mut terminal, "Opening local storage...")?;
+        let mut storage: Box<dyn Storage> = {
+            let url = match config
+                .sqlite
+                .as_ref()
+                .map(|sqlite_config| sqlite_config.url.clone())
+            {
+                Some(url) => url,
+                None => Url::from_file_path(config.gurk_db_path())
+                    .map_err(|_| anyhow!("failed to convert gurk db path to url"))?,
+            };
+
+            debug!(%url, "opening sqlite data storage");
+            let sqlite_storage = SqliteStorage::maybe_encrypt_and_open(&url, &passphrase, false)
+                .await
+                .with_context(|| format!("failed to open sqlite data storage at: {url}"))?;
+            Box::new(MemCache::new(sqlite_storage))
         };
 
-        debug!(%url, "opening sqlite data storage");
-        let sqlite_storage = SqliteStorage::maybe_encrypt_and_open(&url, &passphrase, false)
-            .await
-            .with_context(|| format!("failed to open sqlite data storage at: {url}"))?;
-        Box::new(MemCache::new(sqlite_storage))
+        draw_loading(&mut terminal, "Syncing messages...")?;
+        sync_from_signal(&*signal_manager, &mut *storage).await;
+
+        draw_loading(&mut terminal, "Loading interface...")?;
+        let (app, app_events) = App::try_new(config, signal_manager.clone_boxed(), storage)?;
+        app.populate_names_cache().await;
+        Ok::<_, anyhow::Error>((signal_manager, app, app_events))
+    }
+    .await;
+
+    let (mut signal_manager, mut app, mut app_events) = match init {
+        Ok(value) => value,
+        Err(error) => {
+            teardown_terminal(&mut terminal)?;
+            return Err(error);
+        }
     };
-
-    sync_from_signal(&*signal_manager, &mut *storage).await;
-
-    let (mut app, mut app_events) = App::try_new(config, signal_manager.clone_boxed(), storage)?;
-    app.populate_names_cache().await;
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Event>(100);
     // Stored reader so it can be aborted before launching an external editor
@@ -213,18 +236,6 @@ async fn run(config: Config, passphrase: Passphrase, relink: bool) -> anyhow::Re
             tokio::time::sleep(after).await;
         }
     });
-
-    enable_raw_mode()?;
-    let _raw_mode_guard = scopeguard::guard((), |_| {
-        disable_raw_mode().unwrap();
-    });
-
-    let mut stdout = std::io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-    terminal.clear()?;
 
     let mut res = Ok(()); // result on quit
     let mut last_render_at = Instant::now();
@@ -399,13 +410,42 @@ async fn run(config: Config, passphrase: Passphrase, relink: bool) -> anyhow::Re
         }
     }
 
+    teardown_terminal(&mut terminal)?;
+
+    res
+}
+
+fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<std::io::Stdout>>> {
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
+    Ok(terminal)
+}
+
+fn teardown_terminal(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> anyhow::Result<()> {
+    disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
-    )
-    .unwrap();
-    terminal.show_cursor().unwrap();
+    )?;
+    terminal.show_cursor()?;
+    Ok(())
+}
 
-    res
+fn draw_loading(
+    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    message: &str,
+) -> anyhow::Result<()> {
+    terminal.draw(|frame| {
+        let widget = Paragraph::new(message)
+            .block(Block::default().borders(Borders::ALL).title("gurk"))
+            .alignment(Alignment::Center);
+        frame.render_widget(widget, frame.area());
+    })?;
+    Ok(())
 }
