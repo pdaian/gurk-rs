@@ -151,9 +151,9 @@ fn clickable_config(framework: &str) -> String {
     format!(
         concat!(
             "clickable_minimum_required: 8.0.0\n",
-            "builder: pure\n",
+            "builder: precompiled\n",
             "framework: {framework}\n",
-            "arch: arm64\n"
+            "restrict_arch: arm64\n"
         ),
         framework = framework,
     )
